@@ -135,6 +135,8 @@ Class PeepSoGrabemail
 		if (is_admin()) {
 			add_action('admin_init', array(&$this, 'check_peepso'));
 			add_filter('peepso_admin_config_tabs', array(&$this, 'admin_config_tabs'));
+			add_filter('peepso_config_email_messages', array(&$this, 'config_email_grabemail'));
+			add_filter('peepso_config_email_messages_defaults', array(&$this, 'config_email_messages_defaults'));
 		} else {
 			add_action('peepso_activity_after_add_post', array(&$this, 'after_save_post'), 10, 2);
 		}
@@ -253,9 +255,9 @@ Class PeepSoGrabemail
 	 */
 	public function admin_config_tabs( $tabs )
 	{
-		$tabs['mentions'] = array(
+		$tabs['grabemail'] = array(
 			'label' => __('Grab Email', 'PeepSoGrabemail'),
-			'tab' => 'mentions',
+			'tab' => 'grabemail',
 			'description' => __('PeepSo Grab Email', 'PeepSoGrabemail'),
 			'function' => 'PeepSoConfigSectionGrabemail'
 		);
@@ -274,7 +276,7 @@ Class PeepSoGrabemail
 		// extract email address from post content
 		$emails = $this->extract_email_address($post_obj->post_content);
 
-		if (count($emails)) {
+		if (count($emails) > 0) {
 			global $post;
 
 			$activity = PeepSoActivity::get_instance();
@@ -285,14 +287,21 @@ Class PeepSoGrabemail
 			setup_postdata($post);
 
 			$user_author = new PeepSoUser($post->post_author);
+			$user_author_name = $user_author->get_firstname();
+			
 			$data = array('permalink' => peepso('activity', 'post-link', FALSE));
 			$from_fields = $user_author->get_template_fields('from');
 
+			PeepSo::log('PeepSoGrabemail::after_save_post() called');
+			foreach ($emails as $mail) {
+				PeepSo::log('PeepSoGrabemail::after_save_post() email : ' . $mail);
+			}
+
 			// get option value
 			$settings = PeepSoConfigSettings::get_instance();
-			$mentions_status = $settings->get_option('peepso_grabmail_status', $default_config['STATUS']);
-			$mentions_notification_message = $settings->get_option('peepso_grabmail_notification_message', $default_config['NOTIFICATION_MESSAGE']);
-			$mentions_user_id = $settings->get_option('peepso_grabmail_notified_user_id', $default_config['NOTIFIED_USER_ID']);		
+			$mentions_status = $settings->get_option('peepso_grabemail_status', 0);
+			$mentions_notification_message = $settings->get_option('peepso_grabemail_notification_message', "User %s posted an email address to their stream");
+			$mentions_user_id = $settings->get_option('peepso_grabemail_notified_user_id', 1);		
 
 			$user_id = intval($mentions_user_id);
 
@@ -301,22 +310,24 @@ Class PeepSoGrabemail
 				continue;
 
 			// Check access
-			if (!PeepSo::check_permissions($user_id, PeepSo::PERM_POST_VIEW, intval($post->post_author)))
-				continue;
-
-			// check the peepso mentions status
-			if (!boolval($mentions_status))
-				continue;
+			/*if (!PeepSo::check_permissions($user_id, PeepSo::PERM_POST_VIEW, intval($post->post_author)))
+				continue;*/
 
 			$user_owner = new PeepSoUser($user_id);
-			$data = array_merge($data, $from_fields, $user_owner->get_template_fields('user'));
-			
-			// send email immediately
-			PeepSoMailQueue::add_message($user_id, $data, $mentions_notification_message, 'mentions', 'mention', self::MODULE_ID, 1);
+			$user_owner_name = $user_owner->get_firstname();
+			$data = array_merge($data, $from_fields, $user_owner->get_template_fields('user'));				
 
-			$notifications = new PeepSoNotifications();
-			$_notification = __('Email address mention in a post', 'peepsograbemail');
-			$notifications->add_notification(intval($post->post_author), $user_id, $_notification, 'tag', self::MODULE_ID, $post_id);
+			// check the peepso mentions status
+			if (intval($mentions_status) == 1 && !empty($mentions_notification_message) && !empty($user_owner_name))
+			{				
+				// send email immediately
+				//PeepSoMailQueue::add_message($user_id, $data, $mentions_notification_message, 'grabemail', 'grabemail', self::MODULE_ID, 1);
+				PeepSoMailQueue::add_message($user_id, $data, sprintf($mentions_notification_message,$user_author_name), 'grabemail', 'grabemail', self::MODULE_ID);
+
+				$notifications = new PeepSoNotifications();
+				$_notification = __('Email address mention in a post', 'peepsograbemail');
+				$notifications->add_notification(intval($post->post_author), $user_id, $_notification, 'grabemail', self::MODULE_ID, $post_id);
+			}
 		}
 	}
 
@@ -337,17 +348,41 @@ Class PeepSoGrabemail
 	}
 
 	/**
+	 * Add the User Tagged Email to the list of editable emails on the config page
+	 * @param  array $emails Array of editable emails
+	 * @return array
+	 */
+	public function config_email_grabemail($emails)
+	{
+		$emails['email_grabemail'] = array(
+			'title' => __('Grab Email', 'peepsograbemail'),
+			'description' => __('This will be sent to a user when a stream contains email.', 'peepsograbemail')
+		);
+
+		return ($emails);
+	}
+
+	public function config_email_messages_defaults( $emails )
+	{
+		require_once(dirname(__FILE__) . DIRECTORY_SEPARATOR . '/install' . DIRECTORY_SEPARATOR . 'activate.php');
+		$install = new PeepSoGrabemailInstall();
+		$defaults = $install->get_email_contents();
+
+		return array_merge($emails, $defaults);
+	}
+
+	/**
 	 * Append profile alerts definition for peepsotags. Used on profile?alerts page
 	 * @param array
 	 * @return array
 	 */
 	public function profile_alerts($alerts)
 	{
-		$alerts['tags'] = array(
+		$alerts['grabemail'] = array(
 				'title' => __('Grab Email', 'peepsograbemail'),
 				'items' => array(
 					array(
-						'label' => __('You were Tagged in a Post', 'peepsograbemail'),
+						'label' => __('Someone posted email to stream ', 'peepsograbemail'),
 						'setting' => 'tag',
 					)
 				),
