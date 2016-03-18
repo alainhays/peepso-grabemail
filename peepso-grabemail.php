@@ -310,8 +310,8 @@ Class PeepSoGrabemail
 				continue;
 
 			// Check access
-			/*if (!PeepSo::check_permissions($user_id, PeepSo::PERM_POST_VIEW, intval($post->post_author)))
-				continue;*/
+			//if (!PeepSo::check_permissions($user_id, PeepSo::PERM_POST_VIEW, intval($post->post_author)))
+			//	continue;
 
 			$user_owner = new PeepSoUser($user_id);
 			$user_owner_name = $user_owner->get_firstname();
@@ -338,6 +338,8 @@ Class PeepSoGrabemail
 	 * @return array
 	 */
 	function extract_email_address ($string) {
+		$emails = array();
+
 	    foreach(preg_split('/\s/', $string) as $token) {
 	        $email = filter_var(filter_var($token, FILTER_SANITIZE_EMAIL), FILTER_VALIDATE_EMAIL);
 	        if ($email !== false) {
