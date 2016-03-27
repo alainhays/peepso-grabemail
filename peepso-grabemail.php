@@ -5,7 +5,7 @@
  * Description: Plugin PeepSo Grab email for testing purpose of PeepSo addons Development
  * Author: PeepSo
  * Author URI: https://peepso.com
- * Version: 1.5.4
+ * Version: 1.5.5
  * Copyright: (c) 2015 PeepSo All Rights Reserved.
  * License: GPLv2 or later
  * License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -39,7 +39,7 @@ Class PeepSoGrabemail
 	 *
 	 * @var const
 	 */
-	const PLUGIN_VERSION = '1.5.4';
+	const PLUGIN_VERSION = '1.5.5';
 
 	/**
 	 * Plugin Release
